@@ -12,16 +12,12 @@ import (
 	"github.com/spf13/viper"
 )
 
-// 配置信息
+// 配置信息 - 已删除 Rsync 相关字段
 type Config struct {
 	Port     string `yaml:"port"`
 	RootDir  string `yaml:"root_dir"`
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
-	Rsync    struct {
-		Username string `yaml:"username"`
-		Password string `yaml:"password"`
-	} `yaml:"rsync"`
 }
 
 // 文件信息
@@ -50,13 +46,11 @@ func init() {
 	viper.AddConfigPath("./config")
 	viper.AutomaticEnv()
 
-	// 设置默认值
+	// 设置默认值 - 已删除 Rsync 相关配置
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("root_dir", "./mirror")
 	viper.SetDefault("username", "admin")
 	viper.SetDefault("password", "password")
-	viper.SetDefault("rsync.username", "rsync")
-	viper.SetDefault("rsync.password", "rsyncpass")
 
 	// 读取配置文件
 	if err := viper.ReadInConfig(); err != nil {
@@ -69,13 +63,11 @@ func init() {
 		}
 	}
 
-	// 直接从Viper获取值
+	// 直接从Viper获取值 - 已删除 Rsync 相关配置
 	config.Port = viper.GetString("port")
 	config.RootDir = viper.GetString("root_dir")
 	config.Username = viper.GetString("username")
 	config.Password = viper.GetString("password")
-	config.Rsync.Username = viper.GetString("rsync.username")
-	config.Rsync.Password = viper.GetString("rsync.password")
 
 	// 调试信息
 	fmt.Printf("Loaded config: Port=%s, RootDir=%s, Username=%s\n",
@@ -236,13 +228,6 @@ func downloadHandlerWithPath(c *gin.Context) {
 	c.File(fullPath)
 }
 
-// rsync处理
-func rsyncHandler(c *gin.Context) {
-	// 这里可以实现rsync的认证和处理
-	// 为了简单起见，我们只返回一个成功消息
-	c.JSON(http.StatusOK, gin.H{"message": "rsync service is running"})
-}
-
 func main() {
 	// 设置为生产模式
 	gin.SetMode(gin.ReleaseMode)
@@ -250,17 +235,16 @@ func main() {
 	// 创建gin引擎
 	r := gin.Default()
 
-	// 初始化模板引擎
-	r.LoadHTMLGlob("templates/*")
+	// 初始化模板引擎 - 只加载HTML文件
+	r.LoadHTMLGlob("templates/*.html")
 	// 静态文件服务
 	r.Static("/static", "./static")
 	// 添加favicon支持
-	r.StaticFile("/favicon.ico", "./templates/favicon.ico")
-	// 路由
+	r.StaticFile("/favicon.ico", "./favicon.ico")
+	// 路由 - 已删除 rsync 相关路由
 	r.GET("/", basicAuth(), indexHandler)
 	r.GET("/download", basicAuth(), downloadHandler)
-	r.GET("/download/*path", basicAuth(), downloadHandlerWithPath) // 新的路径参数路由
-	r.POST("/rsync", rsyncHandler)                                 // rsync通常使用POST请求
+	r.GET("/download/*path", basicAuth(), downloadHandlerWithPath)
 
 	// 启动服务器
 	fmt.Printf("Server is running on http://localhost:%s\n", config.Port)
