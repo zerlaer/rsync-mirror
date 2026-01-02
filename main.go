@@ -255,12 +255,12 @@ func main() {
 	// 静态文件服务
 	r.Static("/static", "./static")
 	// 添加favicon支持
-	r.StaticFile("/favicon.ico", "./logo.ico")
+	r.StaticFile("/favicon.ico", "./templates/favicon.ico")
 	// 路由
 	r.GET("/", basicAuth(), indexHandler)
 	r.GET("/download", basicAuth(), downloadHandler)
 	r.GET("/download/*path", basicAuth(), downloadHandlerWithPath) // 新的路径参数路由
-	r.POST("/rsync", rsyncHandler) // rsync通常使用POST请求
+	r.POST("/rsync", rsyncHandler)                                 // rsync通常使用POST请求
 
 	// 启动服务器
 	fmt.Printf("Server is running on http://localhost:%s\n", config.Port)
