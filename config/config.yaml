@@ -1,0 +1,7 @@
+port: 8080
+root_dir: ./mirror
+username: admin
+password: password
+rsync:
+  username: rsync
+  password: rsyncpass

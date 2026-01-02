@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rsync Mirror</title>
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI",
+          Roboto, sans-serif;
+        background: #888888;
+        color: #333;
+        min-height: 100vh;
+        padding: 20px; /* 添加页面内边距 */
+        overflow: auto; /* 允许页面滚动 */
+      }
+
+      .container {
+        max-width: 80%; /* 设置最大宽度 */
+        width: 100%; /* 但在小屏幕上仍占满宽度 */
+        min-height: calc(100vh - 40px); /* 最小高度减去页面内边距 */
+        margin: 0 auto; /* 居中显示 */
+        background: white;
+        border-radius: 16px; /* 恢复圆角 */
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15); /* 恢复阴影 */
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .header {
+        background: #4f46e5;
+        color: white;
+        padding: 30px 40px; /* 恢复左右内边距 */
+        display: flex;
+        justify-content: center; /* 将h1标题居中 */
+        align-items: center;
+        flex-shrink: 0;
+      }
+
+      .header h1 {
+        font-weight: 700;
+        font-size: 28px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .header h1 i {
+        font-size: 32px;
+      }
+
+      .toolbar {
+        padding: 24px 40px; /* 恢复左右内边距 */
+        border-bottom: 1px solid #e5e7eb;
+        background: #f9fafb;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+        flex-shrink: 0;
+      }
+
+      .path {
+        font-size: 16px;
+        color: #6b7280;
+        font-weight: 500;
+        background: white;
+        padding: 12px 16px;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        flex: 1;
+        min-width: 200px;
+      }
+
+      .sync-info {
+        background: #eff6ff;
+        color: #2563eb;
+        padding: 12px 16px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        white-space: nowrap;
+      }
+
+      .navigation {
+        padding: 24px 40px; /* 恢复左右内边距 */
+        border-bottom: 1px solid #e5e7eb;
+        flex-shrink: 0;
+      }
+
+      .back-buttons {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        background: #6366f1;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        text-decoration: none;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(99, 102, 241, 0.3);
+      }
+
+      .btn:hover {
+        background: #4f46e5;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(99, 102, 241, 0.4);
+      }
+
+      .btn-secondary {
+        background: #e5e7eb;
+        color: #374151;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .btn-secondary:hover {
+        background: #d1d5db;
+        color: #1f2937;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+      }
+
+      .file-table-container {
+        padding: 0 40px 40px; /* 恢复左右内边距 */
+        flex: 1;
+        overflow: auto;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+      }
+
+      th {
+        background: #f9fafb;
+        padding: 16px 20px;
+        text-align: left;
+        font-weight: 600;
+        font-size: 14px;
+        color: #374151;
+        border-bottom: 2px solid #e5e7eb;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      /* 调整列宽 */
+      th:nth-child(1) {
+        width: 60%; /* 增加文件名列宽度 */
+      }
+
+      th:nth-child(2) {
+        width: 20%; /* 调整大小列宽度 */
+      }
+
+      th:nth-child(3) {
+        width: 20%; /* 调整时间列宽度 */
+      }
+
+      td {
+        padding: 16px 20px;
+        font-size: 14px;
+        color: #4b5563;
+        border-bottom: 1px solid #f3f4f6;
+      }
+
+      tr:hover {
+        background: #f9fafb;
+      }
+
+      tr:last-child td {
+        border-bottom: none;
+      }
+
+      .file-icon {
+        font-size: 20px;
+        margin-right: 12px;
+        color: #6366f1;
+      }
+
+      .dir-icon {
+        color: #f59e0b;
+      }
+
+      .file-name {
+        text-decoration: none;
+        color: #1f2937;
+        font-weight: 500;
+        transition: color 0.2s ease;
+        word-break: break-all; /* 长文件名换行 */
+      }
+
+      .file-name:hover {
+        color: #6366f1;
+      }
+
+      .file-size {
+        text-align: right;
+        color: #6b7280;
+        font-family: "Courier New", monospace;
+      }
+
+      .file-time {
+        color: #6b7280;
+        font-family: "Courier New", monospace;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 80px 40px;
+        color: #9ca3af;
+      }
+
+      .empty-state i {
+        font-size: 80px;
+        margin-bottom: 20px;
+        opacity: 0.5;
+      }
+
+      .empty-state p {
+        font-size: 16px;
+        font-weight: 500;
+      }
+
+      /* 从style.css文件中导入的样式 */
+      .brand-logo {
+        font-weight: 600;
+        padding-left: 6px;
+      }
+      .collection-item i {
+        vertical-align: middle;
+        margin-right: 8px;
+      }
+
+      @media (max-width: 1200px) {
+        .container {
+          max-width: 100%;
+          border-radius: 0;
+          box-shadow: none;
+          min-height: 100vh;
+        }
+
+        body {
+          padding: 0;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .header,
+        .toolbar,
+        .navigation,
+        .file-table-container {
+          padding-left: 20px;
+          padding-right: 20px;
+        }
+
+        .header {
+          flex-direction: column;
+          gap: 16px;
+          text-align: center;
+        }
+
+        .toolbar {
+          flex-direction: column;
+          align-items: stretch;
+        }
+
+        .path,
+        .sync-info {
+          text-align: center;
+        }
+
+        .file-table-container {
+          overflow-x: auto;
+        }
+
+        table {
+          min-width: 500px;
+        }
+
+        th,
+        td {
+          padding: 12px 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1><i class="fas fa-server"></i> Rsync Mirror</h1>
+      </div>
+
+      <div class="toolbar">
+        <div class="path">当前路径: /{{.Path}}</div>
+        <div class="sync-info">
+          <i class="fas fa-sync-alt"></i> 支持 rsync 和 wget 下载
+        </div>
+      </div>
+
+      {{if ne .Path ""}}
+      <div class="navigation">
+        <div class="back-buttons">
+          <a href="/" class="btn"> <i class="fas fa-home"></i> 返回根目录 </a>
+          <a href="/?path={{.ParentPath}}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 返回上一级
+          </a>
+        </div>
+      </div>
+      {{end}}
+
+      <div class="file-table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>名称</th>
+              <th>大小</th>
+              <th>修改时间</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{if .FileList}} {{range .FileList}}
+            <tr>
+              <td>
+                {{if .IsDir}}
+                <i class="fas fa-folder dir-icon"></i>
+                <a href="/?path={{.Path}}" class="file-name">{{.Name}}</a>
+                {{else}}
+                <i class="fas fa-file file-icon"></i>
+                <a href="/download?path={{.Path}}" class="file-name"
+                  >{{.Name}}</a
+                >
+                {{end}}
+              </td>
+              <td class="file-size">
+                {{if .IsDir}}- {{else}}{{.FormattedSize}} {{end}}
+              </td>
+              <td class="file-time">{{.FormattedTime}}</td>
+            </tr>
+            {{end}} {{else}}
+            <tr>
+              <td colspan="3" class="empty-state">
+                <i class="fas fa-folder-open"></i>
+                <p>当前目录为空</p>
+              </td>
+            </tr>
+            {{end}}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </body>
+</html>

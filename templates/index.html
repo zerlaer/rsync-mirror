@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Rsync Mirror</title>
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
+      rel="stylesheet"
+    />
+    <link href="/static/style.css" rel="stylesheet" />
+  </head>
+  <body>
+    <nav>
+      <div class="nav-wrapper container">
+        <a href="#" class="brand-logo">Rsync Mirror</a>
+        <ul id="nav-mobile" class="right hide-on-med-and-down">
+          {{if .User}}
+          <li><a href="/logout">登出</a></li>
+          {{else}}
+          <li><a href="/login">登录</a></li>
+          {{end}}
+        </ul>
+      </div>
+    </nav>
+
+    <div class="container" style="margin-top: 20px">
+      <div class="row">
+        <div class="col s12 m4">
+          <div class="card">
+            <div class="card-content">
+              <span class="card-title">操作</span>
+              <button id="syncBtn" class="btn waves-effect waves-light">
+                触发同步
+              </button>
+              <p id="syncStatus" style="margin-top: 12px"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="col s12 m8">
+          <div class="card">
+            <div class="card-content">
+              <span class="card-title">文件浏览</span>
+              <div id="crumbs"></div>
+              <ul class="collection" id="fileList"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal for wget -->
+    <div id="wgetModal" class="modal">
+      <div class="modal-content">
+        <h4>Wget 命令</h4>
+        <pre id="wgetCmd"></pre>
+      </div>
+      <div class="modal-footer"><a class="modal-close btn">关闭</a></div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        M.Modal.init(document.querySelectorAll(".modal"));
+        loadPath("/");
+        fetchSyncStatus();
+      });
+
+      function fetchSyncStatus() {
+        fetch("/api/sync/status")
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            var s = d.syncing
+              ? "正在同步..."
+              : "上次: " + (d.last_time || "--");
+            document.getElementById("syncStatus").innerText = s;
+          });
+      }
+
+      document.getElementById("syncBtn").addEventListener("click", function () {
+        fetch("/api/sync", { method: "POST" })
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function () {
+            fetchSyncStatus();
+            M.toast({ html: "已触发同步" });
+          });
+      });
+
+      function loadPath(p) {
+        fetch("/api/list" + p)
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (d) {
+            var list = d.list || [];
+            var el = document.getElementById("fileList");
+            el.innerHTML = "";
+            var crumbs = document.getElementById("crumbs");
+            crumbs.innerHTML =
+              '<a href="#" onclick="loadPath(\'\/\')">/</a> ' + p;
+            list.forEach(function (it) {
+              var li = document.createElement("li");
+              li.className = "collection-item";
+              if (it.is_dir) {
+                li.innerHTML =
+                  '<i class="material-icons">folder</i> <a href="#" onclick="loadPath(\'' +
+                  it.path +
+                  "')\">" +
+                  it.name +
+                  "</a>";
+              } else {
+                li.innerHTML =
+                  '<i class="material-icons">insert_drive_file</i> ' +
+                  it.name +
+                  ' <a class="secondary-content btn-flat" href="/api/download' +
+                  it.path +
+                  '">下载</a> <a class="secondary-content btn-flat" onclick="showWget(\'' +
+                  it.path +
+                  "')\">wget</a>";
+              }
+              el.appendChild(li);
+            });
+          });
+      }
+
+      function showWget(p) {
+        var url = location.origin + "/api/download" + p;
+        document.getElementById("wgetCmd").innerText =
+          'wget -c "' + url + '" -O "' + p.split("/").pop() + '"';
+        M.Modal.getInstance(document.getElementById("wgetModal")).open();
+      }
+    </script>
+  </body>
+</html>
