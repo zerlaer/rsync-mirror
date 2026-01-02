@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -25,19 +26,19 @@ type Config struct {
 
 // 文件信息
 type FileInfo struct {
-	Name         string
-	Path         string
-	Size         int64
-	IsDir        bool
-	ModTime      time.Time
-	Permissions  string
+	Name        string
+	Path        string
+	Size        int64
+	IsDir       bool
+	ModTime     time.Time
+	Permissions string
 }
 
 // 模板数据结构
 type TemplateData struct {
-	Path         string
-	ParentPath   string
-	FileList     []map[string]interface{}
+	Path       string
+	ParentPath string
+	FileList   []map[string]interface{}
 }
 
 var config Config
@@ -77,7 +78,7 @@ func init() {
 	config.Rsync.Password = viper.GetString("rsync.password")
 
 	// 调试信息
-	fmt.Printf("Loaded config: Port=%s, RootDir=%s, Username=%s\n", 
+	fmt.Printf("Loaded config: Port=%s, RootDir=%s, Username=%s\n",
 		config.Port, config.RootDir, config.Username)
 
 	// 创建根目录
@@ -149,56 +150,76 @@ func formatTime(t time.Time) string {
 
 // 首页处理函数
 func indexHandler(c *gin.Context) {
-    path := c.Query("path")
-    fullPath := filepath.Join(config.RootDir, path)
+	path := c.Query("path")
+	fullPath := filepath.Join(config.RootDir, path)
 
-    // 检查路径是否存在
-    if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-        c.JSON(http.StatusNotFound, gin.H{"error": "Path not found"})
-        return
-    }
+	// 检查路径是否存在
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "Path not found"})
+		return
+	}
 
-    // 获取文件列表
-    fileList, err := getFileList(path)
-    if err != nil {
-        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-        return
-    }
+	// 获取文件列表
+	fileList, err := getFileList(path)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
 
-    // 准备模板数据
-    parentPath := ""
-    if path != "" {
-        parentPath = filepath.Dir(path)
-        if parentPath == "." {
-            parentPath = ""
-        }
-    }
+	// 准备模板数据
+	parentPath := ""
+	if path != "" {
+		parentPath = filepath.Dir(path)
+		if parentPath == "." {
+			parentPath = ""
+		}
+	}
 
-    // 格式化文件信息
-    var formattedFileList []map[string]interface{}
-    for _, file := range fileList {
-        formattedFile := map[string]interface{}{
-            "Name":          file.Name,
-            "Path":          file.Path,
-            "IsDir":         file.IsDir,
-            "FormattedSize": formatSize(file.Size),
-            "FormattedTime": formatTime(file.ModTime),
-        }
-        formattedFileList = append(formattedFileList, formattedFile)
-    }
+	// 格式化文件信息
+	var formattedFileList []map[string]interface{}
+	for _, file := range fileList {
+		formattedFile := map[string]interface{}{
+			"Name":          file.Name,
+			"Path":          file.Path,
+			"IsDir":         file.IsDir,
+			"FormattedSize": formatSize(file.Size),
+			"FormattedTime": formatTime(file.ModTime),
+		}
+		formattedFileList = append(formattedFileList, formattedFile)
+	}
 
-    // 渲染模板
-    data := TemplateData{
-        Path:         path,
-        ParentPath:   parentPath,
-        FileList:     formattedFileList,
-    }
-    c.HTML(http.StatusOK, "mirror.html", data)
+	// 渲染模板
+	data := TemplateData{
+		Path:       path,
+		ParentPath: parentPath,
+		FileList:   formattedFileList,
+	}
+	c.HTML(http.StatusOK, "mirror.html", data)
 }
 
-// 下载文件
+// 下载文件（查询参数方式）
 func downloadHandler(c *gin.Context) {
 	path := c.Query("path")
+	fullPath := filepath.Join(config.RootDir, path)
+
+	// 检查文件是否存在
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		c.JSON(http.StatusNotFound, gin.H{"error": "File not found"})
+		return
+	}
+
+	// 设置下载头
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filepath.Base(path)))
+	c.Header("Content-Type", "application/octet-stream")
+	c.File(fullPath)
+}
+
+// 下载文件（路径参数方式）
+func downloadHandlerWithPath(c *gin.Context) {
+	// 获取路径参数并移除开头的斜杠
+	path := strings.TrimPrefix(c.Param("path"), "/")
 	fullPath := filepath.Join(config.RootDir, path)
 
 	// 检查文件是否存在
@@ -233,10 +254,12 @@ func main() {
 	r.LoadHTMLGlob("templates/*")
 	// 静态文件服务
 	r.Static("/static", "./static")
-
+	// 添加favicon支持
+	r.StaticFile("/favicon.ico", "./logo.ico")
 	// 路由
 	r.GET("/", basicAuth(), indexHandler)
 	r.GET("/download", basicAuth(), downloadHandler)
+	r.GET("/download/*path", basicAuth(), downloadHandlerWithPath) // 新的路径参数路由
 	r.POST("/rsync", rsyncHandler) // rsync通常使用POST请求
 
 	// 启动服务器
